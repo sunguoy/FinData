@@ -1,5 +1,3 @@
---update
-
 create or replace package body PKG_PRO_HANDLE_AFADIV is
 
    procedure pro_esclientbasehandler(o_code OUT NUMBER
@@ -173,27 +171,30 @@ end pro_esclientpositionhandler;
 procedure pro_esusermodularhadler(o_code OUT NUMBER
    ,o_note OUT VARCHAR2) is
 begin
-     insert into afaiv.T_ES_USER_MODULAR_TMP (USER_ID,LOGIN_ID,MODULAR_ID,  MODULAR_NAME, MODULAR_NAME_ALL, MODULAR_URL, OPERATE_TYPE, ELASTICSEARCH_ID, BATCH_ID, ELASTICSEARCH_TAG, ELASTICSEARCH_TAG_NAME, CREATE_TIME, UPDATE_TIME, BATCH_SUB_ID)
-     select a.user_id, a.login_id, d.modular_id, d.modular_name, 'tmp', d.url, '1', ROWNUM, null, 'user_modular_index', '菜单', sysdate, sysdate,ceil(ROWNUM / 10000)
-            from t_xtgl_user a, t_xtgl_userrole b, t_xtgl_rolemodular c, t_xtgl_modular d, dual
+     insert into afaiv.T_ES_USER_MODULAR_TMP (USER_ID,LOGIN_ID,MODULAR_ID,  MODULAR_NAME, MODULAR_NAME_ALL, MODULAR_URL, OPERATE_TYPE, BATCH_ID, ELASTICSEARCH_TAG, ELASTICSEARCH_TAG_NAME, CREATE_TIME, UPDATE_TIME)
+       select distinct a.user_id, a.login_id, d.modular_id, d.modular_name, 'tmp', d.url, '1', null, 'user_modular_index', '菜单', sysdate, sysdate
+       from t_xtgl_user a, t_xtgl_userrole b, t_xtgl_rolemodular c, t_xtgl_modular d, dual
 
-            where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id;
+       where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id;
 
+
+
+     UPDATE afaiv.t_es_user_modular_tmp t SET ELASTICSEARCH_ID=ROWNUM, BATCH_SUB_ID=ceil(ROWNUM / 10000);
 
      BEGIN
-            FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
-            UPDATE afaiv.t_es_user_modular_tmp t
-                   SET t.modular_name_all =
-                   (SELECT REPLACE(wm_concat(modular_name), ',', '-')
-                           FROM (SELECT d.modular_name
-                           FROM t_xtgl_modular d
-                           START WITH d.modular_id = m.modular_id
-                           CONNECT BY PRIOR parent_id = d.modular_id
-                           ORDER BY LEVEL DESC))
-            WHERE t.modular_id = m.modular_id;
+     FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
+     UPDATE afaiv.t_es_user_modular_tmp t
+       SET t.modular_name_all =
+           (SELECT REPLACE(wm_concat(modular_name), ',', '-')
+              FROM (SELECT d.modular_name
+                      FROM t_xtgl_modular d
+                     START WITH d.modular_id = m.modular_id
+                    CONNECT BY PRIOR parent_id = d.modular_id
+                     ORDER BY LEVEL DESC))
+     WHERE t.modular_id = m.modular_id;
 
      COMMIT;
-            END LOOP;
+     END LOOP;
 
      END;
 
@@ -239,12 +240,9 @@ procedure PRO_HANDLE_AFADIV(o_code OUT NUMBER
    ,o_note OUT VARCHAR2) is
 begin
 
-  UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'start', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_base_index' AND t.job_action = 'C';
-
-  UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'start', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_position_index' AND t.job_action = 'C';
-
-  --INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_base_index', '1. Oracle procedure completed', SYSDATE);
-  --INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_position_index', '1. Oracle procedure completed', SYSDATE);
+  pro_esclientbasehandler(o_code ,o_note);
+  pro_esclientpositionhandler(o_code ,o_note);
+  
 end PRO_HANDLE_AFADIV;
 
 
