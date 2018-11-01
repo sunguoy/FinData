@@ -163,6 +163,20 @@ EXECUTE IMMEDIATE 'CREATE TABLE afaiv.T_ES_CLIENT_POSITION_TMP AS
 SELECT * FROM TEMP8';
 EXECUTE IMMEDIATE 'DROP TABLE TEMP8';
 
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.open_date=(select open_date from client.t_client_outclientid_info f where f.client_id=t.client_id),
+                                            t.client_telephone=(select PHONECODE from client.t_client_outclientid_info f where f.client_id=t.client_id),
+                                            t.client_email=(select EMAIL from client.t_client_outclientid_info f where f.client_id=t.client_id),
+                                            t.is_available=(select t3.valid_client from CLIENT.T_INDEX_CLIENTCURENT t3 where t3.client_id=t.client_id),
+                                            t.user_id_str=(SELECT '|'||replace(wm_concat(d.user_id),',','|')||'|' FROM afaer.t_serv_servrela d WHERE d.client_id = t.client_id),
+                                            t.login_id_str=(SELECT '|'||replace(wm_concat(t4.login_id),',','|')||'|' FROM afaer.t_serv_servrela d, afaer.t_xtgl_user t4 WHERE d.client_id = t.client_id and d.user_id=t4.user_id),
+                                            t.user_name_str=(SELECT '|'||replace(wm_concat(t4.user_name),',','|')||'|' FROM afaer.t_serv_servrela d, afaer.t_xtgl_user t4 WHERE d.client_id = t.client_id and d.user_id=t4.user_id);
+                                            t.main_serv_hrid=(select u.hrid from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id  and u.user_id=d.user_id and rownum<=1),
+                                            t.main_serv_name=(select u.user_name from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
+                                            t.main_serv_telephone=(select u.phonecode from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
+                                            t.main_serv_org_id=(select u.organization_id from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
+                                            t.main_serv_org_name=(select t4.organization_name from t_xtgl_organization t4 where t4.organization_id=t.main_serv_org_id and rownum<=1),
+                                            t.main_serv_id=(select t5.main_servuserid from  client.t_client_outclientid t5 where t5.client_id = t.client_id and rownum<1);
+
 UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'start', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_position_index' AND t.job_action = 'C';
 INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_position_index', '1. Oracle procedure completed', SYSDATE);
 end pro_esclientpositionhandler;
@@ -178,9 +192,11 @@ begin
        where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id;
 
 
-
-     UPDATE afaiv.t_es_user_modular_tmp t SET ELASTICSEARCH_ID=ROWNUM, BATCH_SUB_ID=ceil(ROWNUM / 10000);
-
+       update afaiv.t_es_user_modular_tmp t set t.elasticsearch_id=ROWNUM;
+       update afaiv.t_es_user_modular_tmp t set  t.batch_sub_id=ceil(ROWNUM / 10000);
+       update afaiv.t_es_user_modular_tmp t set  t.batch_id=mod( t.batch_sub_id,8)+1;
+       UPDATE afaiv.t_es_user_modular_tmp t SET ELASTICSEARCH_ID=ROWNUM, BATCH_SUB_ID=ceil(ROWNUM / 10000);
+       commit;
      BEGIN
      FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
      UPDATE afaiv.t_es_user_modular_tmp t
@@ -192,44 +208,90 @@ begin
                     CONNECT BY PRIOR parent_id = d.modular_id
                      ORDER BY LEVEL DESC))
      WHERE t.modular_id = m.modular_id;
-
      COMMIT;
      END LOOP;
-
      END;
-
 end pro_esusermodularhadler;
-
 
 
 procedure pro_esuserhelphandler(o_code OUT NUMBER
    ,o_note OUT VARCHAR2) is
 begin
-   insert into afaiv.T_ES_USER_HELP_TMP (USER_ID,LOGIN_ID,MODULAR_ID, MODULAR_NAME, MODULAR_NAME_ALL,  OPERATE_TYPE, ELASTICSEARCH_ID, BATCH_ID, ELASTICSEARCH_TAG, ELASTICSEARCH_TAG_NAME, CREATE_TIME, UPDATE_TIME, BATCH_SUB_ID,FUNCTION_ID, FUNCTION_NAME, CHAPTER_ID)
-          select a.user_id, a.login_id, d.modular_id, d.modular_name, 'tmp', '1', ROWNUM, null, 'user_modular_index', '菜单', sysdate, sysdate,ceil(ROWNUM / 10000),e.function_id,e.function_name,null
-          from t_xtgl_user a, t_xtgl_userrole b, t_xtgl_rolemodular c, t_xtgl_modular d, t_xtgl_function e, dual
-          where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id and e.modular_id=d.modular_id;
+CREATE TABLE afaiv.T_ES_USER_HELP_TMP(
 
+USER_ID NUMBER(10),
+LOGIN_ID VARCHAR2(50),
+MODULAR_ID NUMBER(18), 
+MODULAR_NAME VARCHAR2(200),
+MODULAR_NAME_ALL VARCHAR2(1000), 
+OPERATE_TYPE VARCHAR2(1), 
+ELASTICSEARCH_ID NUMBER, 
+BATCH_ID NUMBER, 
+ELASTICSEARCH_TAG VARCHAR2(200), 
+ELASTICSEARCH_TAG_NAME VARCHAR2(200), 
+CREATE_TIME DATE, 
+UPDATE_TIME DATE, 
+BATCH_SUB_ID NUMBER,
+FUNCTION_ID NUMBER, 
+FUNCTION_NAME VARCHAR2(200), 
+CHAPTER_ID NUMBER(18),
+DIGEST VARCHAR2(600)
+);
 
-   BEGIN
-          FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
-          UPDATE  afaiv.T_ES_USER_HELP_TMP t
-          SET t.modular_name_all =
-           (SELECT REPLACE(wm_concat(modular_name), ',', '-')
-              FROM (SELECT d.modular_name
-                      FROM t_xtgl_modular d
-                     START WITH d.modular_id = m.modular_id
-                    CONNECT BY PRIOR parent_id = d.modular_id
-                     ORDER BY LEVEL DESC))
-                     WHERE t.modular_id = m.modular_id;
+insert into afaiv.T_ES_USER_HELP_TMP (USER_ID,LOGIN_ID,MODULAR_ID ,FUNCTION_ID, FUNCTION_NAME, CHAPTER_ID,DIGEST)
+select distinct a.user_id,
+                a.login_id,
+                g.modular_id,
+                g.function_id,
+                g.function_name,
+                g.chapter_id,
+                g.digest
+  from t_xtgl_user a,
+       t_xtgl_userrole b,
+       t_xtgl_rolemodular c,
+       (select d.chapter_id,
+               d.modular_id,
+               d.function_id,
+               d.digest,
+               (select e.modular_name
+                  from t_xtgl_modular e
+                 where e.modular_id = d.modular_id) modular_name,
+               (select f.function_name
+                  from t_xtgl_function f
+                 where f.function_id = d.function_id) function_name
+          from t_chapter_info d
+         where d.status = 1
+           and d.dle_status = 1) g
+ where a.user_id = b.user_id
+   and b.role_id = c.role_id
+   and c.modular_id = g.modular_id;
+   
+update afaiv.T_ES_USER_HELP_TMP t set t.MODULAR_NAME=(select distinct MODULAR_NAME from t_xtgl_modular d where d.modular_id=t.modular_id),
+                                      t.OPERATE_TYPE='1',
+                                      t.ELASTICSEARCH_ID=ROWNUM,
+                                      t.ELASTICSEARCH_TAG='user_modular_index', 
+                                      t.ELASTICSEARCH_TAG_NAME='菜单', 
+                                      t.CREATE_TIME=sysdate, 
+                                      t.UPDATE_TIME=sysdate, 
+                                      t.BATCH_SUB_ID=ceil(ROWNUM / 10000);
 
-          COMMIT;
-          END LOOP;
-
-   END;
-
+update afaiv.T_ES_USER_HELP_TMP t set t.batch_id=mod(t.batch_sub_id,8);
+commit; 
+BEGIN
+       FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
+       UPDATE  afaiv.T_ES_USER_HELP_TMP t
+       SET t.modular_name_all =
+        (SELECT REPLACE(wm_concat(modular_name), ',', '-')
+           FROM (SELECT d.modular_name
+                   FROM t_xtgl_modular d
+                  START WITH d.modular_id = m.modular_id
+                 CONNECT BY PRIOR parent_id = d.modular_id
+                  ORDER BY LEVEL DESC))
+                  WHERE t.modular_id = m.modular_id;
+       COMMIT;
+       END LOOP;
+END;
 end pro_esuserhelphandler;
-
 
 
 
@@ -244,7 +306,6 @@ begin
   pro_esclientpositionhandler(o_code ,o_note);
   
 end PRO_HANDLE_AFADIV;
-
 
 
 end PKG_PRO_HANDLE_AFADIV;
