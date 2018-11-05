@@ -1,121 +1,69 @@
-create or replace package body PKG_PRO_HANDLE_AFADIV is
+-------**************T_ES_CLIENT_POSITION_TMP表**************-------
 
-   procedure pro_esclientbasehandler(o_code OUT NUMBER
-   ,o_note OUT VARCHAR2) is
-begin
-     EXECUTE IMMEDIATE 'create table TEMP1 as
-                               select A.CLIENT_ID,
-                                      F.FUND_ACCOUNT, 
-                                      F.branch_no AS client_org_id, 
-                                      F.open_date,
-                                      (SELECT o.organization_name
-                                              FROM afaer.t_xtgl_organization o
-                                              WHERE o.organization_id = F.branch_no
-                                              AND o.rec_status = ''1''
-                                              AND rownum <= 1) AS client_org_name,
-                                       ''1'' AS operate_type,
-                                       ''client_base_index'' AS elasticsearch_tag
-                                       ,''客户'' AS elasticsearch_tag_name
-                                       , SYSDATE AS create_time
-                                       , SYSDATE AS update_time 
-                                       from client.t_client_counterclient A, client.t_client_fundaccount F 
-                                        WHERE A.CLIENT_ID=F.CLIENT_ID';
-    
-      EXECUTE IMMEDIATE 'create table TEMP2 as
-      select A.*,B.CLIENT_NAME,B.PHONECODE AS client_telephone,B.EMAIL AS client_email FROM TEMP1 A, client.T_CLIENT_OUTCLIENTID_INFO B WHERE A.CLIENT_ID=B.CLIENT_ID';
-      EXECUTE IMMEDIATE 'DROP TABLE TEMP1';
-
-      EXECUTE IMMEDIATE 'create table TEMP3 as
-      select A.*, B.MAIN_SERVUSERID AS main_serv_id FROM TEMP2 A, client.t_client_outclientid B WHERE A.CLIENT_ID=B.CLIENT_ID';
-      EXECUTE IMMEDIATE 'DROP TABLE TEMP2';
-
-      EXECUTE IMMEDIATE 'create table TEMP4 as
-      select A.*, B.login_id AS main_serv_hrid , B.user_name AS main_serv_name, B.phonecode AS main_serv_telephone FROM TEMP3 A, afaer.t_xtgl_user B WHERE A.main_serv_id=B.USER_ID';
-      EXECUTE IMMEDIATE ' DROP TABLE TEMP3';
-
-      EXECUTE IMMEDIATE 'create table TEMP5 as
-      select A.*, B.organization_id AS main_serv_org_id, B.organization_name AS main_serv_org_name FROM TEMP4 A, afaer.t_xtgl_organization B WHERE A.CLIENT_ORG_ID=B.ORGANIZATION_ID';
-      EXECUTE IMMEDIATE 'DROP TABLE TEMP4';
-
-      EXECUTE IMMEDIATE 'alter table TEMP5           
-      add (batch_id NUMBER,
-      elasticsearch_id NUMBER)';   
-     
-      EXECUTE IMMEDIATE 'CREATE TABLE afaiv.t_es_client_base_tmp AS 
-      SELECT * FROM TEMP5';
-      EXECUTE IMMEDIATE 'DROP TABLE TEMP5';
-     
-     UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'start', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_base_index' AND t.job_action = 'C';
-     INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_base_index', '1. Oracle procedure completed', SYSDATE);
-end pro_esclientbasehandler;
-
-procedure pro_esclientpositionhandler(o_code OUT NUMBER
-   ,o_note OUT VARCHAR2) is
-begin
-EXECUTE IMMEDIATE 'create table TEMP1 as
+create table afaiv.TEMP1 as
 select A.CLIENT_ID,
        B.fund_account,
        B.branch_no AS client_org_id,
        B.open_date AS open_date
       from client.t_client_counterclient A, client.t_client_fundaccount B
-      WHERE A.CLIENT_ID=B.CLIENT_ID';
+      WHERE A.CLIENT_ID=B.CLIENT_ID;
       
-EXECUTE IMMEDIATE 'create table TEMP2 as
+create table afaiv.TEMP2 as
 select A.*,
       B.CLIENT_NAME,
       B.PHONECODE AS client_telephone,
       B.EMAIL AS client_email
-      from TEMP1 A, client.T_CLIENT_OUTCLIENTID_INFO B
-      WHERE A.CLIENT_ID=B.CLIENT_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP1';
+      from afaiv.TEMP1 A, client.T_CLIENT_OUTCLIENTID_INFO B
+      WHERE A.CLIENT_ID=B.CLIENT_ID;
+DROP TABLE afaiv.TEMP1;
       
-EXECUTE IMMEDIATE 'create table TEMP3 as
+create table afaiv.TEMP3 as
 select A.*,
       B.organization_name AS client_org_name,
       B.organization_id AS main_serv_org_id,
       B.organization_name AS main_serv_org_name
-      from TEMP2 A, afaer.t_xtgl_organization B
-      WHERE A.CLIENT_ORG_ID=B.ORGANIZATION_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP2';
+      from afaiv.TEMP2 A, afaer.t_xtgl_organization B
+      WHERE A.CLIENT_ORG_ID=B.ORGANIZATION_ID;
+DROP TABLE afaiv.TEMP2;
 
-EXECUTE IMMEDIATE 'create table TEMP4 as
+create table afaiv.TEMP4 as
 select A.*,
       B.main_servuserid AS main_serv_id
-      from TEMP3 A, client.t_client_outclientid B
-      WHERE A.CLIENT_ID=B.CLIENT_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP3';
+      from afaiv.TEMP3 A, client.t_client_outclientid B
+      WHERE A.CLIENT_ID=B.CLIENT_ID;
+DROP TABLE afaiv.TEMP3;
 
-EXECUTE IMMEDIATE 'create table TEMP5 as
+create table afaiv.TEMP5 as
 select A.*,
       B.login_id AS main_serv_hrid,
       B.user_name AS main_serv_name,
       B.phonecode AS main_serv_telephone
-      from TEMP4 A, afaer.t_xtgl_user B
-      WHERE A.main_serv_id=B.USER_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP4';
+      from afaiv.TEMP4 A, afaer.t_xtgl_user B
+      WHERE A.main_serv_id=B.USER_ID;
+DROP TABLE afaiv.TEMP4;
 
-EXECUTE IMMEDIATE 'create table TEMP6 as
+create table afaiv.TEMP6 as
 select A.*,
       B.VALID_CLIENT AS is_available
-      from TEMP5 A, CLIENT.T_INDEX_CLIENTCURENT B
-      WHERE A.CLIENT_ID=B.CLIENT_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP5';
+      from afaiv.TEMP5 A, CLIENT.T_INDEX_CLIENTCURENT B
+      WHERE A.CLIENT_ID=B.CLIENT_ID;
+DROP TABLE afaiv.TEMP5;
 
-EXECUTE IMMEDIATE 'create table TEMP7 as
+create table afaiv.TEMP7 as
 select A.*,
       stock_code AS product_code
-      from TEMP6 A, CLIENT.t_hs06_stock B
-      WHERE A.CLIENT_ID=B.CLIENT_ID';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP6';
+      from afaiv.TEMP6 A, CLIENT.t_hs06_stock B
+      WHERE A.CLIENT_ID=B.CLIENT_ID;
+DROP TABLE afaiv.TEMP6;
 
-EXECUTE IMMEDIATE 'create table TEMP8 as
+create table afaiv.TEMP8 as
 select A.*,
       stock_name AS product_name
-      from TEMP7 A, quser.t_hs06_stkcode B
-      WHERE A.product_code=B.STOCK_CODE';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP7';
+      from afaiv.TEMP7 A, quser.t_hs06_stkcode B
+      WHERE A.product_code=B.STOCK_CODE;
+DROP TABLE afaiv.TEMP7;
 
-EXECUTE IMMEDIATE 'alter table TEMP8           
+alter table afaiv.TEMP8           
 add (
 user_id_str            VARCHAR2(1000),
 login_id_str        VARCHAR2(1000),
@@ -156,69 +104,224 @@ elasticsearch_id      NUMBER        ,
 elasticsearch_tag      VARCHAR2(10)  ,
 elasticsearch_tag_name  VARCHAR2(300) ,
 create_time        DATE          ,
-update_time        DATE          
-     )';   
+update_time        DATE,
+BATCH_SUB_ID	NUMBER,
+EXTEND_VALUE_6	VARCHAR2(30),
+EXTEND_KEY_6	VARCHAR2(30)         
+     );   
      
-EXECUTE IMMEDIATE 'CREATE TABLE afaiv.T_ES_CLIENT_POSITION_TMP AS 
-SELECT * FROM TEMP8';
-EXECUTE IMMEDIATE 'DROP TABLE TEMP8';
+CREATE TABLE afaiv.T_ES_CLIENT_POSITION_TMP AS 
+SELECT * FROM afaiv.TEMP8;
+DROP TABLE afaiv.TEMP8;
+alter table afaiv.T_ES_CLIENT_POSITION_TMP modify  MAIN_SERV_ORG_ID null;
 
-update afaiv.T_ES_CLIENT_POSITION_TMP t set t.open_date=(select open_date from client.t_client_outclientid_info f where f.client_id=t.client_id),
-                                            t.client_telephone=(select PHONECODE from client.t_client_outclientid_info f where f.client_id=t.client_id),
-                                            t.client_email=(select EMAIL from client.t_client_outclientid_info f where f.client_id=t.client_id),
+
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.client_email=(select EMAIL from client.t_client_outclientid_info f where f.client_id=t.client_id),
                                             t.is_available=(select t3.valid_client from CLIENT.T_INDEX_CLIENTCURENT t3 where t3.client_id=t.client_id),
-                                            t.user_id_str=(SELECT '|'||replace(wm_concat(d.user_id),',','|')||'|' FROM afaer.t_serv_servrela d WHERE d.client_id = t.client_id),
-                                            t.login_id_str=(SELECT '|'||replace(wm_concat(t4.login_id),',','|')||'|' FROM afaer.t_serv_servrela d, afaer.t_xtgl_user t4 WHERE d.client_id = t.client_id and d.user_id=t4.user_id),
-                                            t.user_name_str=(SELECT '|'||replace(wm_concat(t4.user_name),',','|')||'|' FROM afaer.t_serv_servrela d, afaer.t_xtgl_user t4 WHERE d.client_id = t.client_id and d.user_id=t4.user_id);
-                                            t.main_serv_hrid=(select u.hrid from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id  and u.user_id=d.user_id and rownum<=1),
-                                            t.main_serv_name=(select u.user_name from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
-                                            t.main_serv_telephone=(select u.phonecode from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
-                                            t.main_serv_org_id=(select u.organization_id from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1),
-                                            t.main_serv_org_name=(select t4.organization_name from t_xtgl_organization t4 where t4.organization_id=t.main_serv_org_id and rownum<=1),
-                                            t.main_serv_id=(select t5.main_servuserid from  client.t_client_outclientid t5 where t5.client_id = t.client_id and rownum<1);
+                                            t.create_time=sysdate,
+                                            t.update_time=sysdate,
+                                            t.operate_type='1',
+                                            t.ELASTICSEARCH_ID=ROWNUM,
+                                            t.BATCH_SUB_ID=ceil(ROWNUM / 10000),
+                                            t.batch_id=mod(t.batch_sub_id,8)+1,
+                                            t.elasticsearch_tag='01', 
+                                            t.elasticsearch_tag_name='二级持仓';
+commit;
 
-UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'start', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_position_index' AND t.job_action = 'C';
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_hrid=(select u.hrid from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id  and u.user_id=d.user_id and rownum<=1);
+commit;
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_name=(select u.user_name from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1);
+commit;
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_telephone=(select u.phonecode from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1);
+commit;
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_org_name=(select t4.organization_name from t_xtgl_organization t4 where t4.organization_id=t.main_serv_org_id and rownum<=1);
+commit;
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_id=(select t5.main_servuserid from  client.t_client_outclientid t5 where t5.client_id = t.client_id and rownum<1);
+commit;
+update afaiv.T_ES_CLIENT_POSITION_TMP t set t.main_serv_org_id=(select u.organization_id from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE t.client_id=d.client_id and u.user_id=d.user_id and rownum<=1);
+commit;
+
+CREATE TABLE t_tmp_client_Test AS 
+SELECT d.client_id
+      ,'|' || listagg(d.user_id, '|') within group(ORDER BY d.client_id) || '|' AS USER_ID_STR
+      ,'|' || listagg(u.login_id, '|') within group(ORDER BY d.client_id) || '|' AS login_id_str
+      ,'|' || listagg(u.user_name, '|') within group(ORDER BY d.client_id) || '|' AS user_name_str
+  FROM afaer.t_serv_servrela d, afaer.t_xtgl_user u
+ WHERE u.user_id = d.user_id
+   AND d.user_relatype = '2'
+   AND u.rec_status = '1'
+ GROUP BY client_id;
+
+create index idx_tmp_client_Test on t_tmp_client_Test(Client_Id);
+create index idx_ES_CLIENT_POSITION_TMP on afaiv.T_ES_CLIENT_POSITION_TMP(Client_Id);
+
+update afaiv.T_ES_CLIENT_POSITION_TMP t 
+   set ( t.user_id_str,t.login_id_str, t.user_name_str) = (select t1.USER_ID_STR,t1.login_id_str, t1.user_name_str 
+   from t_tmp_client_Test t1 where  t.client_id=t1.client_id and rownum<=1);
+commit;
+
+UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'ready', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_position_index' AND t.job_action = 'C';
 INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_position_index', '1. Oracle procedure completed', SYSDATE);
-end pro_esclientpositionhandler;
 
 
-procedure pro_esusermodularhadler(o_code OUT NUMBER
-   ,o_note OUT VARCHAR2) is
-begin
-     insert into afaiv.T_ES_USER_MODULAR_TMP (USER_ID,LOGIN_ID,MODULAR_ID,  MODULAR_NAME, MODULAR_NAME_ALL, MODULAR_URL, OPERATE_TYPE, BATCH_ID, ELASTICSEARCH_TAG, ELASTICSEARCH_TAG_NAME, CREATE_TIME, UPDATE_TIME)
+-------**************afaiv.t_es_client_base_tmp表**************-------
+create table TEMP1 as
+       select A.CLIENT_ID,
+       F.FUND_ACCOUNT, 
+       F.branch_no AS client_org_id, 
+       F.open_date,
+       (SELECT o.organization_name
+               FROM afaer.t_xtgl_organization o
+               WHERE o.organization_id = F.branch_no
+               AND o.rec_status = '1'
+               AND rownum <= 1) AS client_org_name,
+        '1' AS operate_type,
+        'client_base_index' AS elasticsearch_tag
+        ,'客户' AS elasticsearch_tag_name
+        , SYSDATE AS create_time
+        , SYSDATE AS update_time 
+        from client.t_client_counterclient A, client.t_client_fundaccount F 
+         WHERE A.CLIENT_ID=F.CLIENT_ID;
+    
+create table TEMP2 as
+      select A.*,B.CLIENT_NAME,B.PHONECODE AS client_telephone,B.EMAIL AS client_email FROM TEMP1 A, client.T_CLIENT_OUTCLIENTID_INFO B WHERE A.CLIENT_ID=B.CLIENT_ID;
+      DROP TABLE TEMP1;
+
+create table TEMP3 as
+      select A.*, B.MAIN_SERVUSERID AS main_serv_id FROM TEMP2 A, client.t_client_outclientid B WHERE A.CLIENT_ID=B.CLIENT_ID;
+      DROP TABLE TEMP2;
+
+create table TEMP4 as
+      select A.*, B.login_id AS main_serv_hrid , B.user_name AS main_serv_name, B.phonecode AS main_serv_telephone FROM TEMP3 A, afaer.t_xtgl_user B WHERE A.main_serv_id=B.USER_ID;
+      DROP TABLE TEMP3;
+
+create table TEMP5 as
+      select A.*, B.organization_id AS main_serv_org_id, B.organization_name AS main_serv_org_name FROM TEMP4 A, afaer.t_xtgl_organization B WHERE A.CLIENT_ORG_ID=B.ORGANIZATION_ID;
+      DROP TABLE TEMP4;
+
+alter table TEMP5           
+      add (batch_id NUMBER,
+      elasticsearch_id NUMBER);   
+
+CREATE TABLE afaiv.t_es_client_base_tmp AS 
+      SELECT * FROM TEMP5;
+      DROP TABLE TEMP5;
+alter table afaiv.t_es_client_base_tmp          
+add (
+      BATCH_SUB_ID	NUMBER,		
+      IS_AVAILABLE	VARCHAR2(1));	
+
+update afaiv.t_es_client_base_tmp t set
+               t.BATCH_SUB_ID=ceil(ROWNUM / 10000);
+update afaiv.t_es_client_base_tmp t set 
+               t.batch_id=mod(t.batch_sub_id,8)+1,
+               t.ELASTICSEARCH_ID=ROWNUM,
+               t.is_available=(select t3.valid_client from CLIENT.T_INDEX_CLIENTCURENT t3 where t3.client_id=t.client_id and rownum<=1);
+commit;
+update afaiv.t_es_client_base_tmp t set t.main_serv_telephone=(select u.phonecode from afaer.t_xtgl_user u,afaer.t_serv_servrela d WHERE d.client_id = t.client_id and u.user_id=d.user_id and rownum<=1);
+commit;
+update afaiv.t_es_client_base_tmp t set t.client_email=(select EMAIL from client.t_client_outclientid_info f where f.client_id=t.client_id);
+commit
+
+
+UPDATE afaiv.t_elastic_job_task t SET t.process_status = 'ready', t.start_time = SYSDATE, t.update_time = SYSDATE WHERE t.title = 'client_base_index' AND t.job_action = 'C';
+INSERT INTO afaiv.t_elastic_job_log(title,log_detail,insert_date) VALUES('client_base_index', '1. Oracle procedure completed', SYSDATE);
+commit;
+
+
+-------**************AFAIV.T_ES_USER_MODULAR_TMP表**************-------
+
+-- Create table
+create table AFAIV.T_ES_USER_MODULAR_TMP
+(
+  USER_ID                NUMBER not null,
+  LOGIN_ID               VARCHAR2(300) not null,
+  MODULAR_ID             NUMBER not null,
+  MODULAR_NAME           VARCHAR2(300) not null,
+  MODULAR_NAME_ALL       VARCHAR2(1000) not null,
+  MODULAR_URL            VARCHAR2(300),
+  OPERATE_TYPE           VARCHAR2(10) not null,
+  BATCH_ID               NUMBER,
+  ELASTICSEARCH_ID       NUMBER,
+  ELASTICSEARCH_TAG      VARCHAR2(20),
+  ELASTICSEARCH_TAG_NAME VARCHAR2(300),
+  CREATE_TIME            DATE not null,
+  UPDATE_TIME            DATE not null,
+  BATCH_SUB_ID           NUMBER
+)
+tablespace TBS_AFAIV_DATA
+  pctfree 10
+  initrans 1
+  maxtrans 255
+  storage
+  (
+    initial 128
+    next 8
+    minextents 1
+    maxextents unlimited
+    pctincrease 0
+  );
+-- Add comments to the table 
+comment on table AFAIV.T_ES_USER_MODULAR_TMP
+  is '用户菜单权限信息';
+-- Add comments to the columns 
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.USER_ID
+  is '员工编号';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.LOGIN_ID
+  is '员工工号';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.MODULAR_ID
+  is '菜单编号';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.MODULAR_NAME
+  is '菜单名称';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.MODULAR_NAME_ALL
+  is '菜单全路径名称（XX中心-XXXX-XXXX）';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.MODULAR_URL
+  is '路径URL';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.OPERATE_TYPE
+  is '1新增；2更新';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.BATCH_ID
+  is '批次号';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.ELASTICSEARCH_ID
+  is 'ES编号';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.ELASTICSEARCH_TAG
+  is 'user_modular_index';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.ELASTICSEARCH_TAG_NAME
+  is '默认"菜单"';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.CREATE_TIME
+  is '插入时间';
+comment on column AFAIV.T_ES_USER_MODULAR_TMP.UPDATE_TIME
+  is '更新时间';
+
+
+insert into afaiv.T_ES_USER_MODULAR_TMP (USER_ID,LOGIN_ID,MODULAR_ID,  MODULAR_NAME, MODULAR_NAME_ALL, MODULAR_URL, OPERATE_TYPE, BATCH_ID, ELASTICSEARCH_TAG, ELASTICSEARCH_TAG_NAME, CREATE_TIME, UPDATE_TIME)
        select distinct a.user_id, a.login_id, d.modular_id, d.modular_name, 'tmp', d.url, '1', null, 'user_modular_index', '菜单', sysdate, sysdate
        from t_xtgl_user a, t_xtgl_userrole b, t_xtgl_rolemodular c, t_xtgl_modular d, dual
-
-       where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id;
-
-
-       update afaiv.t_es_user_modular_tmp t set t.elasticsearch_id=ROWNUM;
-       update afaiv.t_es_user_modular_tmp t set  t.batch_sub_id=ceil(ROWNUM / 10000);
-       update afaiv.t_es_user_modular_tmp t set  t.batch_id=mod( t.batch_sub_id,8)+1;
-       UPDATE afaiv.t_es_user_modular_tmp t SET ELASTICSEARCH_ID=ROWNUM, BATCH_SUB_ID=ceil(ROWNUM / 10000);
-       commit;
-     BEGIN
-     FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
-     UPDATE afaiv.t_es_user_modular_tmp t
-       SET t.modular_name_all =
-           (SELECT REPLACE(wm_concat(modular_name), ',', '-')
-              FROM (SELECT d.modular_name
-                      FROM t_xtgl_modular d
-                     START WITH d.modular_id = m.modular_id
-                    CONNECT BY PRIOR parent_id = d.modular_id
-                     ORDER BY LEVEL DESC))
-     WHERE t.modular_id = m.modular_id;
-     COMMIT;
-     END LOOP;
-     END;
-end pro_esusermodularhadler;
+       where a.user_id=b.user_id and b.role_id=c.role_id and c.modular_id=d.modular_id and a.rec_status=1 and d.isvalid='1';
 
 
-procedure pro_esuserhelphandler(o_code OUT NUMBER
-   ,o_note OUT VARCHAR2) is
-begin
+update afaiv.t_es_user_modular_tmp t set t.elasticsearch_id=ROWNUM;
+update afaiv.t_es_user_modular_tmp t set  t.batch_sub_id=ceil(ROWNUM / 10000);
+update afaiv.t_es_user_modular_tmp t set  t.batch_id=mod( t.batch_sub_id,8)+1;
+UPDATE afaiv.t_es_user_modular_tmp t SET ELASTICSEARCH_ID=ROWNUM, BATCH_SUB_ID=ceil(ROWNUM / 10000);
+commit;
+
+BEGIN
+FOR m IN (SELECT DISTINCT modular_id FROM afaer.t_xtgl_modular ) LOOP
+UPDATE afaiv.t_es_user_modular_tmp t
+  SET t.modular_name_all =
+      (SELECT REPLACE(wm_concat(modular_name), ',', '-')
+         FROM (SELECT d.modular_name
+                 FROM t_xtgl_modular d
+                START WITH d.modular_id = m.modular_id
+               CONNECT BY PRIOR parent_id = d.modular_id
+                ORDER BY LEVEL DESC))
+WHERE t.modular_id = m.modular_id;
+COMMIT;
+END LOOP;
+END;
+
+-------**************afaiv.T_ES_USER_HELP_TMP表(4.898s)**************-------
 CREATE TABLE afaiv.T_ES_USER_HELP_TMP(
-
 USER_ID NUMBER(10),
 LOGIN_ID VARCHAR2(50),
 MODULAR_ID NUMBER(18), 
@@ -291,21 +394,3 @@ BEGIN
        COMMIT;
        END LOOP;
 END;
-end pro_esuserhelphandler;
-
-
-
-
-
-  
-procedure PRO_HANDLE_AFADIV(o_code OUT NUMBER
-   ,o_note OUT VARCHAR2) is
-begin
-
-  pro_esclientbasehandler(o_code ,o_note);
-  pro_esclientpositionhandler(o_code ,o_note);
-  
-end PRO_HANDLE_AFADIV;
-
-
-end PKG_PRO_HANDLE_AFADIV;
