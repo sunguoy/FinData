@@ -6,7 +6,7 @@ BEGIN
   o_code NUMBER;
   o_note VARCHAR2(200);
 BEGIN
-  pkg_sync_data.pro_sync_afa_data(o_code, o_note);
+  PKG_PRO_HANDLE_AFADIV.PRO_HANDLE_AFADIV(o_code, o_note);
 END;', SYSDATE, 'TRUNC(sysdate) + 1.175');
   COMMIT;
 END;
@@ -16,8 +16,8 @@ END;
 SELECT * FROM user_jobs;
 
 BEGIN
-dbms_job.remove(482);
-//dbms_job.break(482);
+dbms_job.remove(23);
+--dbms_job.break(482);
 END;
 /
 
