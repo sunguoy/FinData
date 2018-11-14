@@ -1,3 +1,31 @@
+--0、定时调度存储过程
+DECLARE
+  myjob NUMBER;
+BEGIN
+  dbms_job.submit(myjob, 'DECLARE
+  o_code NUMBER;
+  o_note VARCHAR2(200);
+BEGIN
+  pkg_sync_data.pro_sync_afa_data(o_code, o_note);
+END;', SYSDATE, 'TRUNC(sysdate) + 1.175');
+  COMMIT;
+END;
+
+
+
+SELECT * FROM user_jobs;
+
+BEGIN
+dbms_job.remove(482);
+//dbms_job.break(482);
+END;
+/
+
+
+
+
+
+
 ---1、此表的数据量达到700多万条，在进行更新的时候，所耗时间巨大。因此改用索引更新，时间降到了1分钟左右-----
 create table afaiv.TEMP1 as
 select A.CLIENT_ID,
