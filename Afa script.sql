@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 --0、定时调度存储过程
 DECLARE
   myjob NUMBER;
@@ -26,6 +27,8 @@ END;
 
 
 
+=======
+>>>>>>> parent of ca42358... Update Afa script.sql
 ---1、此表的数据量达到700多万条，在进行更新的时候，所耗时间巨大。因此改用索引更新，时间降到了1分钟左右-----
 create table afaiv.TEMP1 as
 select A.CLIENT_ID,
